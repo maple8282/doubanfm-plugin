@@ -82,6 +82,10 @@ class DoubanFMPlugin(GObject.Object, Peas.Activatable, PeasGtk.Configurable):
 		self.change_menu_item_state(False)
 		self.ui_manager.ensure_update()
 
+		# album-art manage
+		self.art_store = RB.ExtDB(name='album-art');
+		self.req_id = self.art_store.connect('request', self.album_art_requested)
+
 		# connect signals
 		self.player.connect('playing-source-changed', self.on_playing_source_changed)
 		self.set_handle_signals(True)
@@ -104,6 +108,11 @@ class DoubanFMPlugin(GObject.Object, Peas.Activatable, PeasGtk.Configurable):
 		self.player = None
 		self.handlers = None
 		self.shell = None
+
+		# clean album-art manage
+		self.art_store.disconnect(self.req_id)
+		self.req_id = 0
+		self.art_store = None
 
 	def set_handle_signals(self, handle):
 		if handle:
@@ -203,3 +212,25 @@ class DoubanFMPlugin(GObject.Object, Peas.Activatable, PeasGtk.Configurable):
 		if self.current_song != None:
 			if elapsed == self.current_song.length:
 				GLib.idle_add(self.source.played_song, self.current_song)
+
+	def album_art_requested(self, store, key, last_time):
+		print "album-art requested!"
+		entry = self.player.get_playing_entry()
+		if entry != None:
+			print "entry is not none, get the picture"
+			title = entry.get_string(RB.RhythmDBPropType.TITLE)
+			cur_song = self.source.get_song_by_title(title)
+			if cur_song.picture:
+				url = cur_song.picture
+				#print title + " url is " + url
+				cur_key = RB.ExtDBKey.create_storage("album", key.get_field("album"))
+				cur_key.add_field("artist", key.get_field("artist"))
+				store.store_uri(cur_key, RB.ExtDBSourceType.SEARCH, url)
+				return True
+			else:
+				return False
+		else:
+			print "entry is none, no song can find!"
+			return False
+
+		return True
